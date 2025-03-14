@@ -41,4 +41,28 @@ while True:
             break
         continue  # Quay lại vòng lặp để thử lại
 
-    # Reset bộ đếm khi kết nối thàn
+    # Reset bộ đếm khi kết nối thành công
+    reconnect_attempts = 0
+
+    # Chạy dự đoán trên frame
+    results = model(frame)
+
+    # Tạo bản sao của khung hình gốc
+    annotated_frame = frame.copy()
+
+    # Vẽ khung đối tượng người lên ảnh
+    for result in results[0].boxes:
+        if model.names[int(result.cls)] == 'person':  
+            annotated_frame = results[0].plot()
+
+    # Hiển thị kết quả
+    cv2.imshow("YOLOv8 Detection", annotated_frame)
+
+    # Nhấn 'q' để thoát
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        print("🔄 Đang thoát...")
+        break
+
+# Giải phóng tài nguyên
+cap.release()
+cv2.destroyAllWindows()
