@@ -1,0 +1,88 @@
+#include <WiFi.h>
+#include "DHT.h"
+#include "ThingSpeak.h"
+
+// WiFi info
+const char* ssid = "BKSTAR_T04";
+const char* passphrase = "stemstar";
+
+// ThingSpeak info
+unsigned long myChannelNumber = 3;
+const char* myWriteAPIKey = "HY1349N1VJM4NEDY";
+
+// DHT11 setup
+#define DHTPIN 2
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// Gas sensor on pin 34
+const int gasSensorPin = 34;
+
+WiFiClient client;
+
+unsigned long lastTime = 0;
+unsigned long timerDelay = 20000; // 20 seconds
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, passphrase);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\n✅ WiFi connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  ThingSpeak.begin(client);
+}
+
+void loop() {
+  if ((millis() - lastTime) > timerDelay) {
+    // Đọc cảm biến DHT11
+    float humidity = dht.readHumidity();
+    float temperature = dht.readTemperature();
+
+    // Đọc cảm biến khí gas
+    int gasRawValue = analogRead(gasSensorPin); // 0 - 4095
+    float gasPercent = map(gasRawValue, 0, 4095, 0, 100); // Chuyển sang %
+
+    // Kiểm tra lỗi DHT
+    if (isnan(humidity) || isnan(temperature)) {
+      Serial.println("❌ Failed to read from DHT sensor!");
+      return;
+    }
+
+    // In ra Serial
+    Serial.println("---------- Sensor Data ----------");
+    Serial.print("🌡️ Temperature (°C): ");
+    Serial.println(temperature);
+    Serial.print("💧 Humidity (%): ");
+    Serial.println(humidity);
+    Serial.print("🟠 Gas level (raw): ");
+    Serial.println(gasRawValue);
+    Serial.print("🔥 Gas level (%): ");
+    Serial.println(gasPercent);
+    Serial.println("---------------------------------");
+
+    // Gửi dữ liệu lên ThingSpeak
+    ThingSpeak.setField(1, humidity);     // Field 1: Humidity
+    ThingSpeak.setField(2, temperature);  // Field 2: Temperature
+    ThingSpeak.setField(3, gasPercent);   // Field 3: Gas Level (%)
+
+    int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+    if (x == 200) {
+      Serial.println("✅ ThingSpeak update successful.");
+    } else {
+      Serial.println("⚠️ ThingSpeak update failed. HTTP error code: " + String(x));
+    }
+
+    lastTime = millis(); // Reset thời gian
+  }
+}
